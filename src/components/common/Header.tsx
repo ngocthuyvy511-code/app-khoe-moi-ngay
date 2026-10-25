@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp, ScreenType } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import {
   Calendar,
   ChevronLeft,
@@ -7,17 +7,17 @@ import {
   Smartphone,
   Laptop,
   Sparkles,
-  ShieldAlert,
   Moon,
   Sun,
   User,
-  HeartHandshake
+  LogIn
 } from 'lucide-react';
 import { getRelativeDateString } from '../../data/initialDemoData';
 
 export const Header: React.FC = () => {
   const {
     currentUser,
+    firebaseUser,
     currentDate,
     setCurrentDate,
     activeScreen,
@@ -26,7 +26,6 @@ export const Header: React.FC = () => {
     setDeviceViewMode,
     theme,
     setTheme,
-    isLargeFont,
   } = useApp();
 
   const handleDateShift = (days: number) => {
@@ -52,7 +51,7 @@ export const Header: React.FC = () => {
         {/* Zone 1: Brand Wordmark */}
         <div className="flex items-center gap-3 shrink-0">
           <button
-            onClick={() => setActiveScreen('home')}
+            onClick={() => setActiveScreen(currentUser ? 'home' : 'auth')}
             className="flex items-center gap-2.5 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 rounded-lg p-1"
           >
             <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shadow-emerald-600/20 group-hover:bg-emerald-700 transition-colors">
@@ -62,57 +61,60 @@ export const Header: React.FC = () => {
               <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white block leading-tight">
                 Khỏe Mỗi Ngày
               </span>
-              <span className="text-[11px] text-stone-500 dark:text-slate-400 block font-normal">
-                {currentUser.isDemoUser ? 'Chế độ Dùng thử (Minh họa)' : 'Tài khoản cá nhân'}
+              <span className="text-[11px] text-emerald-700 dark:text-emerald-400 block font-medium">
+                {currentUser ? 'Firebase Đã liên kết Google' : 'Đăng nhập để đồng bộ'}
               </span>
             </div>
           </button>
         </div>
 
         {/* Zone 2: Date Selector (center, single-line) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-stone-100 dark:bg-slate-800/80 rounded-xl px-2 py-1">
-          <button
-            onClick={() => handleDateShift(-1)}
-            title="Ngày trước"
-            className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+        {currentUser && (
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-stone-100 dark:bg-slate-800/80 rounded-xl px-2 py-1">
+            <button
+              onClick={() => handleDateShift(-1)}
+              title="Ngày trước"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
 
-          <button
-            onClick={() => setCurrentDate(getRelativeDateString(0))}
-            className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors whitespace-nowrap"
-          >
-            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="tabular-nums">
-              {isToday ? `Hôm nay · ${formatDateVietnamese(currentDate)}` : formatDateVietnamese(currentDate)}
-            </span>
-          </button>
+            <button
+              onClick={() => setCurrentDate(getRelativeDateString(0))}
+              className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors whitespace-nowrap"
+            >
+              <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="tabular-nums">
+                {isToday ? `Hôm nay · ${formatDateVietnamese(currentDate)}` : formatDateVietnamese(currentDate)}
+              </span>
+            </button>
 
-          <button
-            onClick={() => handleDateShift(1)}
-            title="Ngày tiếp theo"
-            className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              onClick={() => handleDateShift(1)}
+              title="Ngày tiếp theo"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Zone 3: Actions & Quick Utilities */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* AI Assistant Quick Trigger */}
-          <button
-            onClick={() => setActiveScreen('ai')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
-              activeScreen === 'ai'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100'
-            }`}
-            title="Trợ lý Sống Khỏe AI"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="hidden sm:inline">Trợ lý AI</span>
-          </button>
+          {currentUser && (
+            <button
+              onClick={() => setActiveScreen('ai')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+                activeScreen === 'ai'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100'
+              }`}
+              title="Trợ lý Sống Khỏe AI"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="hidden sm:inline">Trợ lý AI</span>
+            </button>
+          )}
 
           {/* View mode toggle: Laptop/Desktop vs Phone Preview */}
           <button
@@ -142,19 +144,38 @@ export const Header: React.FC = () => {
             {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
           </button>
 
-          {/* User profile / Auth switch */}
-          <button
-            onClick={() => setActiveScreen('profile')}
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors"
-            title="Xem hồ sơ cá nhân"
-          >
-            <div className="w-7 h-7 rounded-full bg-stone-200 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-semibold text-xs">
-              {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <span className="hidden lg:inline text-xs font-medium text-slate-700 dark:text-slate-300 max-w-[90px] truncate">
-              {currentUser.displayName}
-            </span>
-          </button>
+          {/* User profile / Login trigger */}
+          {currentUser ? (
+            <button
+              onClick={() => setActiveScreen('profile')}
+              className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors"
+              title="Xem hồ sơ cá nhân"
+            >
+              {firebaseUser?.photoURL ? (
+                <img
+                  src={firebaseUser.photoURL}
+                  alt={currentUser.displayName}
+                  referrerPolicy="no-referrer"
+                  className="w-7 h-7 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 flex items-center justify-center font-bold text-xs">
+                  {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
+                </div>
+              )}
+              <span className="hidden lg:inline text-xs font-medium text-slate-700 dark:text-slate-300 max-w-[100px] truncate">
+                {currentUser.displayName}
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setActiveScreen('auth')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Đăng nhập</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

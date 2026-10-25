@@ -10,25 +10,38 @@ import {
   Bell,
   Eye,
   Type,
-  FileText,
-  HelpCircle,
   CheckCircle2,
   Sparkles,
-  Sliders
+  Sliders,
+  Database
 } from 'lucide-react';
 import { exportUserDataAsJSON } from '../../utils/storage';
 
 export const ProfileView: React.FC = () => {
   const {
     currentUser,
+    firebaseUser,
     updateProfile,
-    switchUser,
-    allUsers,
-    logout,
-    deleteCurrentAccount,
+    signOutUser,
     setActiveScreen,
     showToast,
   } = useApp();
+
+  if (!currentUser) {
+    return (
+      <div className="max-w-md mx-auto py-12 px-4 text-center space-y-4">
+        <p className="text-sm text-stone-600 dark:text-slate-300">
+          Bạn chưa đăng nhập. Vui lòng đăng nhập bằng tài khoản Google để xem hồ sơ và đồng bộ dữ liệu.
+        </p>
+        <button
+          onClick={() => setActiveScreen('auth')}
+          className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold"
+        >
+          Đến trang Đăng nhập Google
+        </button>
+      </div>
+    );
+  }
 
   // Profile edit form state
   const [displayName, setDisplayName] = useState(currentUser.displayName);
@@ -54,13 +67,11 @@ export const ProfileView: React.FC = () => {
   const [quietHoursStart, setQuietHoursStart] = useState(currentUser.notifications.quietHoursStart);
   const [quietHoursEnd, setQuietHoursEnd] = useState(currentUser.notifications.quietHoursEnd);
 
-  // Modals
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
+    await updateProfile({
       displayName: displayName.trim() || 'Người dùng',
       age: age ? Number(age) : undefined,
       heightCm: Number(heightCm) || 165,
@@ -83,7 +94,7 @@ export const ProfileView: React.FC = () => {
         quietHoursEnd,
       },
     });
-    showToast('Đã lưu các thay đổi hồ sơ & cài đặt.');
+    showToast('Đã lưu các thay đổi hồ sơ & cài đặt lên Firebase.');
   };
 
   const handleExportData = () => {
@@ -105,26 +116,36 @@ export const ProfileView: React.FC = () => {
       {/* User Header Profile Card */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-stone-200/80 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white font-bold text-xl flex items-center justify-center shadow-sm shadow-emerald-600/30 shrink-0">
-            {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
-          </div>
+          {firebaseUser?.photoURL ? (
+            <img
+              src={firebaseUser.photoURL}
+              alt={currentUser.displayName}
+              referrerPolicy="no-referrer"
+              className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-sm shrink-0"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white font-bold text-xl flex items-center justify-center shadow-sm shadow-emerald-600/30 shrink-0">
+              {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
+            </div>
+          )}
+
           <div>
             <h1 className="text-lg font-bold text-slate-900 dark:text-white">
               {currentUser.displayName}
             </h1>
             <p className="text-xs text-stone-500 dark:text-slate-400">
-              {currentUser.email} · {currentUser.isDemoUser ? 'Tài khoản Dùng thử (Mẫu)' : 'Tài khoản đã đăng ký'}
+              {currentUser.email}
             </p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-[11px] bg-stone-100 dark:bg-slate-700 px-2 py-0.5 rounded-lg text-stone-600 dark:text-slate-300 font-medium">
-                Vai trò: {currentUser.role === 'admin' ? 'Quản trị viên' : 'Thành viên'}
+              <span className="text-[11px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
+                <Database className="w-3 h-3" />
+                <span>Đã liên kết Firebase Firestore</span>
               </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Quick link to Onboarding Wizard */}
           <button
             onClick={() => setActiveScreen('onboarding')}
             className="px-3 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-medium rounded-xl transition-colors"
@@ -132,22 +153,13 @@ export const ProfileView: React.FC = () => {
             Làm lại bảng hỏi
           </button>
 
-          {/* Quick link to Auth screen */}
           <button
-            onClick={() => setActiveScreen('auth')}
-            className="px-3 py-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-semibold rounded-xl transition-colors"
+            onClick={signOutUser}
+            className="px-3 py-2 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs font-semibold rounded-xl transition-colors flex items-center gap-1.5"
           >
-            Đổi tài khoản
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Đăng xuất</span>
           </button>
-
-          {currentUser.role === 'admin' && (
-            <button
-              onClick={() => setActiveScreen('admin')}
-              className="px-3 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl hover:bg-purple-700 transition-colors"
-            >
-              Trang Quản Trị
-            </button>
-          )}
         </div>
       </div>
 
@@ -210,7 +222,7 @@ export const ProfileView: React.FC = () => {
               <input
                 type="number"
                 step="0.5"
-                placeholder="Ví dụ: 60"
+                placeholder="Ví dụ: 58"
                 value={targetWeightKg}
                 onChange={(e) => setTargetWeightKg(e.target.value === '' ? '' : Number(e.target.value))}
                 className="w-full px-3 py-2 bg-stone-50 dark:bg-slate-800 rounded-xl border border-stone-200 dark:border-slate-700 font-medium tabular-nums"
@@ -414,11 +426,11 @@ export const ProfileView: React.FC = () => {
           type="submit"
           className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs sm:text-sm font-bold transition-colors shadow-sm"
         >
-          Lưu toàn bộ cài đặt & Hồ sơ
+          Lưu cài đặt vào Firebase
         </button>
       </form>
 
-      {/* 4. Privacy, Data Export & Account Deletion */}
+      {/* 4. Privacy, Data Export */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-stone-200/80 dark:border-slate-700 shadow-sm space-y-4">
         <h2 className="text-sm font-bold text-slate-900 dark:text-white pb-2 border-b border-stone-100 dark:border-slate-700 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -450,7 +462,7 @@ export const ProfileView: React.FC = () => {
                 Chính sách bảo vệ dữ liệu & AI
               </span>
               <span className="text-[11px] text-stone-500 dark:text-slate-400">
-                Cam kết không bán dữ liệu, không chia sẻ công khai ảnh bữa ăn
+                Cam kết không bán dữ liệu, toàn bộ dữ liệu thuộc sở hữu của bạn
               </span>
             </div>
             <button
@@ -460,69 +472,8 @@ export const ProfileView: React.FC = () => {
               Xem chính sách
             </button>
           </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-rose-50/60 dark:bg-rose-950/20 rounded-2xl border border-rose-100 dark:border-rose-900/40">
-            <div>
-              <span className="text-xs font-bold text-rose-900 dark:text-rose-300 block">
-                Xóa tài khoản và toàn bộ dữ liệu
-              </span>
-              <span className="text-[11px] text-rose-700 dark:text-rose-400">
-                Thao tác này sẽ xóa vĩnh viễn mọi bản ghi sức khỏe và không thể phục hồi
-              </span>
-            </div>
-            <button
-              onClick={() => setIsDeleteModalOpen(true)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors self-start sm:self-auto flex items-center gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Xóa tài khoản</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="pt-2 flex items-center justify-between">
-          <button
-            onClick={logout}
-            className="text-xs font-semibold text-stone-500 hover:text-stone-800 dark:hover:text-white flex items-center gap-1"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Đăng xuất khỏi tài khoản</span>
-          </button>
         </div>
       </div>
-
-      {/* Delete confirmation modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-rose-600 flex items-center gap-2">
-              <Trash2 className="w-5 h-5" />
-              <span>Xác nhận xóa tài khoản?</span>
-            </h3>
-            <p className="text-xs text-stone-600 dark:text-slate-300 leading-relaxed">
-              Bạn đang yêu cầu xóa vĩnh viễn tài khoản <strong>"{currentUser.displayName}"</strong> và toàn bộ lịch sử ăn uống, nước uống, bài tập và biểu đồ tiến trình. Hành động này không thể hoàn tác.
-            </p>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 py-2.5 text-xs font-semibold text-stone-600 dark:text-slate-400 bg-stone-100 dark:bg-slate-800 rounded-xl"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={() => {
-                  deleteCurrentAccount();
-                  setIsDeleteModalOpen(false);
-                }}
-                className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm"
-              >
-                Đồng ý xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Privacy modal */}
       {isPrivacyModalOpen && (
@@ -541,13 +492,12 @@ export const ProfileView: React.FC = () => {
             </div>
 
             <p>
-              Ứng dụng <strong>Khỏe Mỗi Ngày</strong> tôn trọng quyền riêng tư tuyệt đối của người dùng theo các nguyên tắc cốt lõi:
+              Ứng dụng <strong>Khỏe Mỗi Ngày</strong> liên kết trực tiếp với Firebase Firestore:
             </p>
             <ul className="list-disc list-inside space-y-1.5 pl-1">
-              <li>Mỗi bản ghi sức khỏe thuộc quyền sở hữu riêng của bạn và được cô lập giữa các tài khoản.</li>
-              <li>Hình ảnh bữa ăn chụp qua tính năng AI chỉ được gửi tạm thời đến máy chủ để ước tính dinh dưỡng và không được lưu trữ công khai.</li>
-              <li>Chúng tôi không quảng cáo giảm cân cấp tốc, không bán dữ liệu cho bên thứ ba.</li>
-              <li>Khóa API và mã nguồn xử lý được quản lý an toàn phía máy chủ.</li>
+              <li>Xác thực trực tiếp bằng tài khoản Google cá nhân. Không tạo tài khoản ảo.</li>
+              <li>Chỉ tài khoản Google của bạn mới có quyền đọc và ghi dữ liệu nhật ký của bạn theo quy tắc bảo mật Firestore Rules.</li>
+              <li>Hình ảnh phân tích chỉ được xử lý tạm thời và không công khai.</li>
             </ul>
 
             <button

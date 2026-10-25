@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Thông tin hồ sơ và tùy chọn lối sống của người dùng",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "Email người dùng" },
+        "displayName": { "type": "string", "description": "Tên hiển thị" },
+        "photoURL": { "type": "string", "description": "Ảnh đại diện Google" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "age": { "type": "number", "description": "Tuổi" },
+        "biologicalSex": { "type": "string", "enum": ["female", "male", "prefer_not_to_say"] },
+        "heightCm": { "type": "number", "description": "Chiều cao theo cm" },
+        "currentWeightKg": { "type": "number", "description": "Cân nặng hiện tại theo kg" },
+        "targetWeightKg": { "type": "number", "description": "Cân nặng mục tiêu" },
+        "activityLevel": { "type": "string", "enum": ["sedentary", "light", "moderate", "very_active"] },
+        "primaryGoal": { "type": "string", "enum": ["manage_weight", "maintain_weight", "build_habits"] },
+        "dailyWaterTargetMl": { "type": "number" },
+        "preferredWeightUnit": { "type": "string", "enum": ["kg", "lb"] },
+        "preferredHeightUnit": { "type": "string", "enum": ["cm", "ft"] },
+        "preferredWaterUnit": { "type": "string", "enum": ["ml", "oz"] },
+        "fontSizePreference": { "type": "string", "enum": ["normal", "large"] },
+        "enableCaloriesDisplay": { "type": "boolean" },
+        "enableWeightDisplay": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "email"]
+    },
+    "Meal": {
+      "title": "Meal",
+      "description": "Bản ghi bữa ăn trong nhật ký",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"] },
+        "foodName": { "type": "string" },
+        "portionLabel": { "type": "string" },
+        "portionMultiplier": { "type": "number" },
+        "calories": { "type": "number" },
+        "protein": { "type": "number" },
+        "carbs": { "type": "number" },
+        "fat": { "type": "number" },
+        "fiber": { "type": "number" },
+        "time": { "type": "string" },
+        "notes": { "type": "string" },
+        "source": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "date", "mealType", "foodName"]
+    },
+    "Water": {
+      "title": "Water",
+      "description": "Lần ghi nhận uống nước",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "amountMl": { "type": "number" }
+      },
+      "required": ["userId", "date", "amountMl"]
+    },
+    "Sleep": {
+      "title": "Sleep",
+      "description": "Nhật ký giấc ngủ qua đêm",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "bedTime": { "type": "string" },
+        "wakeTime": { "type": "string" },
+        "durationHours": { "type": "number" },
+        "quality": { "type": "string", "enum": ["great", "good", "fair", "tired"] },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId", "date", "bedTime", "wakeTime", "durationHours"]
+    },
+    "Workout": {
+      "title": "Workout",
+      "description": "Nhật ký bài tập và vận động thể lực",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "activityType": { "type": "string" },
+        "activityName": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "intensity": { "type": "string", "enum": ["light", "moderate", "vigorous"] },
+        "distanceKm": { "type": "number" },
+        "steps": { "type": "number" },
+        "caloriesBurned": { "type": "number" },
+        "notes": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["userId", "date", "activityName", "durationMinutes"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "Thói quen lối sống tích cực",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "categoryLabel": { "type": "string" },
+        "completedDates": { "type": "array" }
+      },
+      "required": ["userId", "title"]
+    },
+    "Weight": {
+      "title": "Weight",
+      "description": "Số đo cân nặng và thể hình",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "weightKg": { "type": "number" },
+        "waistCm": { "type": "number" },
+        "mood": { "type": "string" },
+        "energyLevel": { "type": "number" },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId", "date", "weightKg"]
+    },
+    "Plan": {
+      "title": "Plan",
+      "description": "Kế hoạch món ăn theo tuần",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dayOfWeek": { "type": "number" },
+        "mealType": { "type": "string" },
+        "title": { "type": "string" },
+        "portionNote": { "type": "string" },
+        "calories": { "type": "number" },
+        "prepTimeMinutes": { "type": "number" },
+        "isConfirmedEaten": { "type": "boolean" }
+      },
+      "required": ["userId", "dayOfWeek", "mealType", "title"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Thông tin hồ sơ người dùng cá nhân"
+    },
+    "/users/{userId}/meals/{mealId}": {
+      "schema": "Meal",
+      "description": "Nhật ký bữa ăn thuộc sở hữu người dùng"
+    },
+    "/users/{userId}/water/{waterId}": {
+      "schema": "Water",
+      "description": "Lịch sử uống nước thuộc sở hữu người dùng"
+    },
+    "/users/{userId}/sleep/{sleepId}": {
+      "schema": "Sleep",
+      "description": "Lịch sử giấc ngủ thuộc sở hữu người dùng"
+    },
+    "/users/{userId}/workouts/{workoutId}": {
+      "schema": "Workout",
+      "description": "Lịch sử vận động thuộc sở hữu người dùng"
+    },
+    "/users/{userId}/habits/{habitId}": {
+      "schema": "Habit",
+      "description": "Danh sách thói quen thuộc sở hữu người dùng"
+    },
+    "/users/{userId}/weights/{weightId}": {
+      "schema": "Weight",
+      "description": "Lịch sử cân nặng thuộc sở hữu người dùng"
+    },
+    "/users/{userId}/plans/{planId}": {
+      "schema": "Plan",
+      "description": "Thực đơn kế hoạch thuộc sở hữu người dùng"
+    }
+  }
+}

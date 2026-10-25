@@ -21,41 +21,41 @@ export const OnboardingWizard: React.FC = () => {
   const [step, setStep] = useState(1);
 
   // Step 1: Basic Bio & Biological context
-  const [displayName, setDisplayName] = useState(currentUser.displayName || '');
-  const [age, setAge] = useState<number | ''>(currentUser.age || 28);
-  const [biologicalSex, setBiologicalSex] = useState<UserProfile['biologicalSex']>(currentUser.biologicalSex || 'prefer_not_to_say');
-  const [heightCm, setHeightCm] = useState<number | ''>(currentUser.heightCm || 165);
-  const [currentWeightKg, setCurrentWeightKg] = useState<number | ''>(currentUser.currentWeightKg || 65);
-  const [targetWeightKg, setTargetWeightKg] = useState<number | ''>(currentUser.targetWeightKg || '');
+  const [displayName, setDisplayName] = useState(currentUser?.displayName || '');
+  const [age, setAge] = useState<number | ''>(currentUser?.age || 28);
+  const [biologicalSex, setBiologicalSex] = useState<UserProfile['biologicalSex']>(currentUser?.biologicalSex || 'prefer_not_to_say');
+  const [heightCm, setHeightCm] = useState<number | ''>(currentUser?.heightCm || 165);
+  const [currentWeightKg, setCurrentWeightKg] = useState<number | ''>(currentUser?.currentWeightKg || 65);
+  const [targetWeightKg, setTargetWeightKg] = useState<number | ''>(currentUser?.targetWeightKg || '');
 
   // Step 2: Health Screening & Eligibility (Critical ethical requirement)
   const [healthConditions, setHealthConditions] = useState<HealthConditionFlag[]>(
-    currentUser.healthConditions || ['none']
+    currentUser?.healthConditions || ['none']
   );
 
   // Step 3: Movement & Lifestyle
-  const [activityLevel, setActivityLevel] = useState<UserProfile['activityLevel']>(currentUser.activityLevel || 'light');
-  const [workoutMinutes, setWorkoutMinutes] = useState(currentUser.workoutMinutesPerDay || 25);
+  const [activityLevel, setActivityLevel] = useState<UserProfile['activityLevel']>(currentUser?.activityLevel || 'light');
+  const [workoutMinutes, setWorkoutMinutes] = useState(currentUser?.workoutMinutesPerDay || 25);
   const [workoutLocations, setWorkoutLocations] = useState<('home' | 'outdoor' | 'gym')[]>(
-    currentUser.workoutLocations || ['home']
+    currentUser?.workoutLocations || ['home']
   );
   const [availableEquipment, setAvailableEquipment] = useState<string[]>(
-    currentUser.availableEquipment || ['Thảm tập']
+    currentUser?.availableEquipment || ['Thảm tập']
   );
 
   // Step 4: Vietnamese Diet & Preferences
-  const [primaryGoal, setPrimaryGoal] = useState<UserProfile['primaryGoal']>(currentUser.primaryGoal || 'manage_weight');
+  const [primaryGoal, setPrimaryGoal] = useState<UserProfile['primaryGoal']>(currentUser?.primaryGoal || 'manage_weight');
   const [dietaryPreference, setDietaryPreference] = useState(
-    currentUser.dietaryPreference || 'Thực đơn gia đình Việt cân bằng'
+    currentUser?.dietaryPreference || 'Thực đơn gia đình Việt cân bằng'
   );
-  const [allergiesInput, setAllergiesInput] = useState(currentUser.allergies.join(', ') || '');
-  const [budgetLevel, setBudgetLevel] = useState<UserProfile['budgetLevel']>(currentUser.budgetLevel || 'moderate');
+  const [allergiesInput, setAllergiesInput] = useState(currentUser?.allergies?.join(', ') || '');
+  const [budgetLevel, setBudgetLevel] = useState<UserProfile['budgetLevel']>(currentUser?.budgetLevel || 'moderate');
   const [cookingTimePreference, setCookingTimePreference] = useState<UserProfile['cookingTimePreference']>(
-    currentUser.cookingTimePreference || 'quick'
+    currentUser?.cookingTimePreference || 'quick'
   );
 
   // Step 5: Notifications & Commitments
-  const [waterTarget, setWaterTarget] = useState(currentUser.dailyWaterTargetMl || 2000);
+  const [waterTarget, setWaterTarget] = useState(currentUser?.dailyWaterTargetMl || 2000);
 
   const toggleHealthCondition = (flag: HealthConditionFlag) => {
     if (flag === 'none') {

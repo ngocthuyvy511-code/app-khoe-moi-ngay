@@ -212,7 +212,7 @@ export const DiaryView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {currentUser.enableCaloriesDisplay && sectionMeals.length > 0 && (
+                  {currentUser?.enableCaloriesDisplay && sectionMeals.length > 0 && (
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 tabular-nums">
                       {sectionCalories} kcal
                     </span>
@@ -251,7 +251,7 @@ export const DiaryView: React.FC = () => {
 
                         <div className="flex flex-wrap items-center gap-x-2 text-xs text-stone-500 dark:text-slate-400 mt-0.5">
                           <span>{meal.portionLabel}</span>
-                          {currentUser.enableCaloriesDisplay && (
+                          {currentUser?.enableCaloriesDisplay && (
                             <>
                               <span aria-hidden="true">·</span>
                               <span className="tabular-nums font-medium text-emerald-700 dark:text-emerald-400">

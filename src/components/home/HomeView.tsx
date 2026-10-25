@@ -39,6 +39,23 @@ export const HomeView: React.FC = () => {
 
   const [isWaterModalOpen, setIsWaterModalOpen] = useState(false);
 
+  if (!currentUser) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center space-y-4">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Chào mừng đến với Khỏe Mỗi Ngày</h2>
+        <p className="text-xs sm:text-sm text-stone-500 dark:text-slate-400">
+          Vui lòng đăng nhập bằng tài khoản Google để bắt đầu theo dõi sức khỏe và đồng bộ hóa dữ liệu với Firebase. Không sử dụng tài khoản ảo.
+        </p>
+        <button
+          onClick={() => setActiveScreen('auth')}
+          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-sm transition-colors inline-flex items-center gap-2"
+        >
+          <span>Đăng nhập bằng tài khoản Google</span>
+        </button>
+      </div>
+    );
+  }
+
   // Time-based friendly greeting
   const getGreeting = () => {
     const hour = new Date().getHours();

@@ -28,7 +28,7 @@ export const AIAssistantView: React.FC = () => {
     {
       id: 'welcome',
       role: 'assistant',
-      content: `Xin chào ${currentUser.displayName}! Tôi là Trợ lý Sống Khỏe của ứng dụng "Khỏe Mỗi Ngày".\n\nTôi ở đây để đồng hành cùng bạn gợi ý món ăn dinh dưỡng từ nguyên liệu có sẵn, đề xuất món ăn thay thế thanh nhẹ hoặc giải đáp thắc mắc về cách xây dựng lối sống lành mạnh bền vững.\n\nLưu ý y khoa: Tôi không thay thế bác sĩ, không kê đơn thuốc hay tư vấn sản phẩm giảm cân. Hãy cho tôi biết bạn đang cần hỗ trợ gì hôm nay nhé!`,
+      content: `Xin chào ${currentUser?.displayName || 'bạn'}! Tôi là Trợ lý Sống Khỏe của ứng dụng "Khỏe Mỗi Ngày".\n\nTôi ở đây để đồng hành cùng bạn gợi ý món ăn dinh dưỡng từ nguyên liệu có sẵn, đề xuất món ăn thay thế thanh nhẹ hoặc giải đáp thắc mắc về cách xây dựng lối sống lành mạnh bền vững.\n\nLưu ý y khoa: Tôi không thay thế bác sĩ, không kê đơn thuốc hay tư vấn sản phẩm giảm cân. Hãy cho tôi biết bạn đang cần hỗ trợ gì hôm nay nhé!`,
       timestamp: 'Hôm nay',
     },
   ]);
@@ -68,15 +68,15 @@ export const AIAssistantView: React.FC = () => {
           message: text,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
           userContext: {
-            displayName: currentUser.displayName,
+            displayName: currentUser?.displayName || 'Bạn',
             goal:
-              currentUser.primaryGoal === 'manage_weight'
+              currentUser?.primaryGoal === 'manage_weight'
                 ? 'Quản lý cân nặng bền vững'
-                : currentUser.primaryGoal === 'maintain_weight'
+                : currentUser?.primaryGoal === 'maintain_weight'
                 ? 'Duy trì cân nặng'
                 : 'Xây dựng thói quen',
-            dietaryRestrictions: currentUser.dietaryRestrictions.join(', ') || 'Không',
-            allergies: currentUser.allergies.join(', ') || 'Không',
+            dietaryRestrictions: currentUser?.dietaryRestrictions?.join(', ') || 'Không',
+            allergies: currentUser?.allergies?.join(', ') || 'Không',
           },
         }),
       });
@@ -191,7 +191,7 @@ export const AIAssistantView: React.FC = () => {
 
               {isUser && (
                 <div className="w-8 h-8 rounded-xl bg-stone-300 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0 text-xs font-bold">
-                  {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
+                  {currentUser?.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
                 </div>
               )}
             </div>

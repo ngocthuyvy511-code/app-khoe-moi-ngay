@@ -21,7 +21,6 @@ export const AdminView: React.FC = () => {
     addCustomFood,
     deleteCustomFood,
     exercises,
-    allUsers,
     setActiveScreen,
     showToast,
   } = useApp();
@@ -36,6 +35,20 @@ export const AdminView: React.FC = () => {
   const [newFoodFat, setNewFoodFat] = useState<number>(8);
   const [newFoodSource, setNewFoodSource] = useState('Viện Dinh Dưỡng Quốc Gia (NIN)');
   const [newFoodServing, setNewFoodServing] = useState('1 phần vừa (~350g)');
+
+  if (!currentUser) {
+    return (
+      <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-3xl border border-stone-200 dark:border-slate-700">
+        <p className="text-stone-600 dark:text-slate-300">Vui lòng đăng nhập bằng Google để truy cập trang quản trị.</p>
+        <button
+          onClick={() => setActiveScreen('home')}
+          className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold"
+        >
+          Về Trang Chủ
+        </button>
+      </div>
+    );
+  }
 
   const handleCreateFoodAsAdmin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,12 +298,12 @@ export const AdminView: React.FC = () => {
       {activeAdminTab === 'metrics' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-5 bg-white dark:bg-slate-800 rounded-3xl border border-stone-200/80 dark:border-slate-700 shadow-sm">
-            <span className="text-xs text-stone-500 block mb-1">Tổng số người dùng</span>
+            <span className="text-xs text-stone-500 block mb-1">Tài khoản Google đang kết nối</span>
             <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums">
-              {allUsers.length}
+              1
             </span>
             <span className="text-[11px] text-stone-400 block mt-1">
-              (Dữ liệu ẩn danh phục vụ thống kê vận hành)
+              (Người dùng thực, đồng bộ Firebase đám mây)
             </span>
           </div>
 

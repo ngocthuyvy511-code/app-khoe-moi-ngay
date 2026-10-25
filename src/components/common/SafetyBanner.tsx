@@ -5,6 +5,8 @@ import { ShieldCheck, HeartHandshake } from 'lucide-react';
 export const SafetyBanner: React.FC = () => {
   const { currentUser } = useApp();
 
+  if (!currentUser) return null;
+
   const hasSpecialCondition =
     currentUser.healthConditions &&
     currentUser.healthConditions.length > 0 &&

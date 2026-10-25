@@ -46,7 +46,7 @@ export const HabitsView: React.FC = () => {
 
   // Water target editing
   const [isEditingWaterTarget, setIsEditingWaterTarget] = useState(false);
-  const [customWaterTarget, setCustomWaterTarget] = useState(currentUser.dailyWaterTargetMl || 2000);
+  const [customWaterTarget, setCustomWaterTarget] = useState(currentUser?.dailyWaterTargetMl || 2000);
 
   // New habit form
   const [isNewHabitModalOpen, setIsNewHabitModalOpen] = useState(false);
@@ -54,7 +54,7 @@ export const HabitsView: React.FC = () => {
   const [newHabitCategory, setNewHabitCategory] = useState<HabitItem['category']>('nutrition');
 
   const todayWaterEntries = water.filter((w) => w.date === currentDate);
-  const waterTarget = currentUser.dailyWaterTargetMl || 2000;
+  const waterTarget = currentUser?.dailyWaterTargetMl || 2000;
   const waterPercent = Math.min(100, Math.round((todayWaterTotalMl / waterTarget) * 100));
 
   const calculatedHours = calculateSleepDuration(bedTime, wakeTime);
@@ -147,10 +147,10 @@ export const HabitsView: React.FC = () => {
           <div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums">
-                {formatWater(todayWaterTotalMl, currentUser.preferredWaterUnit)}
+                {formatWater(todayWaterTotalMl, currentUser?.preferredWaterUnit || 'ml')}
               </span>
               <span className="text-xs text-stone-500 dark:text-slate-400 tabular-nums">
-                / {formatWater(waterTarget, currentUser.preferredWaterUnit)} ({waterPercent}%)
+                / {formatWater(waterTarget, currentUser?.preferredWaterUnit || 'ml')} ({waterPercent}%)
               </span>
             </div>
           </div>

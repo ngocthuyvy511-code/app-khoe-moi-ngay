@@ -27,7 +27,7 @@ export const ProgressView: React.FC = () => {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
 
   // Form states
-  const [newWeight, setNewWeight] = useState<number | ''>(currentUser.currentWeightKg || 65);
+  const [newWeight, setNewWeight] = useState<number | ''>(currentUser?.currentWeightKg || 65);
   const [newWaist, setNewWaist] = useState<number | ''>('');
   const [newMood, setNewMood] = useState<WeightLogEntry['mood']>('peaceful');
   const [newEnergy, setNewEnergy] = useState<number>(4);
@@ -50,7 +50,7 @@ export const ProgressView: React.FC = () => {
       : 0;
 
   // Scientific BMI evaluation with disclaimer
-  const bmiResult = calculateBMI(currentUser.currentWeightKg, currentUser.heightCm);
+  const bmiResult = calculateBMI(currentUser?.currentWeightKg || 60, currentUser?.heightCm || 165);
 
   // SVG Chart calculation
   const chartPoints = useMemo(() => {
@@ -95,6 +95,14 @@ export const ProgressView: React.FC = () => {
     setIsLogModalOpen(false);
     setNewNotes('');
   };
+
+  if (!currentUser) {
+    return (
+      <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-3xl border border-stone-200 dark:border-slate-700 my-8">
+        <p className="text-stone-600 dark:text-slate-300">Vui lòng đăng nhập bằng Google để xem tiến trình và lịch sử cân nặng của bạn.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-24 pt-2">

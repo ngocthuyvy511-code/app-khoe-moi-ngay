@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { onAuthStateChanged, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
+import { auth, googleProvider } from '../firebase';
 import {
   UserProfile,
   MealLogEntry,
@@ -9,35 +11,34 @@ import {
   PlanMealItem,
   WeightLogEntry,
   FoodItem,
-  MealType,
   ExerciseItem,
 } from '../types';
 import {
-  getAllRegisteredUsers,
-  getStoredCurrentUserId,
-  setStoredCurrentUserId,
-  saveUserToDirectory,
-  loadUserMeals,
-  saveUserMeals,
-  loadUserWater,
-  saveUserWater,
-  loadUserSleep,
-  saveUserSleep,
-  loadUserWorkouts,
-  saveUserWorkouts,
-  loadUserHabits,
-  saveUserHabits,
-  loadUserPlans,
-  saveUserPlans,
-  loadUserWeights,
-  saveUserWeights,
-  loadCustomFoods,
-  saveCustomFoods,
-  loadExercises,
-  saveExercises,
-  deleteUserDataCompletely,
-} from '../utils/storage';
-import { DEMO_USER_ID, DEMO_USER_PROFILE, getRelativeDateString } from '../data/initialDemoData';
+  syncUserProfileToFirestore,
+  fetchUserProfileFromFirestore,
+  subscribeUserMeals,
+  saveMealToFirestore,
+  deleteMealFromFirestore,
+  subscribeUserWater,
+  saveWaterToFirestore,
+  deleteWaterFromFirestore,
+  subscribeUserSleep,
+  saveSleepToFirestore,
+  subscribeUserWorkouts,
+  saveWorkoutToFirestore,
+  deleteWorkoutFromFirestore,
+  subscribeUserHabits,
+  saveHabitToFirestore,
+  deleteHabitFromFirestore,
+  subscribeUserWeights,
+  saveWeightToFirestore,
+  deleteWeightFromFirestore,
+  subscribeUserPlans,
+  savePlanToFirestore,
+} from '../services/firestoreService';
+import { INITIAL_VIETNAMESE_FOODS } from '../data/vietnameseFoods';
+import { EXERCISE_LIBRARY } from '../data/exerciseLibrary';
+import { getRelativeDateString } from '../data/initialDemoData';
 
 export type ScreenType =
   | 'home'
@@ -63,9 +64,59 @@ export interface ToastMessage {
   undoLabel?: string;
 }
 
+const DEFAULT_BLANK_PROFILE: UserProfile = {
+  id: '',
+  email: '',
+  displayName: '',
+  role: 'user',
+  age: 28,
+  biologicalSex: 'prefer_not_to_say',
+  heightCm: 165,
+  currentWeightKg: 60,
+  targetWeightKg: 58,
+  activityLevel: 'light',
+  primaryGoal: 'manage_weight',
+  healthConditions: ['none'],
+  isGentleHabitsMode: false,
+  workoutMinutesPerDay: 25,
+  workoutLocations: ['home'],
+  availableEquipment: ['Thảm tập'],
+  dietaryPreference: 'Thực đơn gia đình Việt Nam cân bằng',
+  dislikedFoods: [],
+  dietaryRestrictions: [],
+  allergies: [],
+  budgetLevel: 'moderate',
+  cookingTimePreference: 'quick',
+  dailyWaterTargetMl: 2000,
+  enableCaloriesDisplay: true,
+  enableWeightDisplay: true,
+  preferredWeightUnit: 'kg',
+  preferredHeightUnit: 'cm',
+  preferredWaterUnit: 'ml',
+  fontSizePreference: 'normal',
+  notifications: {
+    mealReminders: true,
+    workoutReminders: true,
+    waterReminders: true,
+    sleepReminders: true,
+    progressReminders: true,
+    weeklyDigest: true,
+    quietHoursStart: '22:30',
+    quietHoursEnd: '06:30',
+  },
+  consentAiPhoto: true,
+  isDemoUser: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 interface AppContextValue {
-  currentUser: UserProfile;
-  allUsers: UserProfile[];
+  currentUser: UserProfile | null;
+  firebaseUser: FirebaseUser | null;
+  isAuthLoading: boolean;
+  signInWithGoogle: () => Promise<void>;
+  signOutUser: () => Promise<void>;
+
   currentDate: string; // YYYY-MM-DD
   setCurrentDate: (date: string) => void;
   activeScreen: ScreenType;
@@ -77,7 +128,7 @@ interface AppContextValue {
   isLargeFont: boolean;
   setIsLargeFont: (b: boolean) => void;
 
-  // Data
+  // Real-time Cloud Data
   meals: MealLogEntry[];
   water: WaterLogEntry[];
   sleep: SleepLogEntry[];
@@ -97,40 +148,33 @@ interface AppContextValue {
   todayCaloriesBurned: number;
 
   // Actions
-  addMeal: (entry: Omit<MealLogEntry, 'id' | 'userId'>) => void;
-  deleteMeal: (id: string) => void;
-  updateMeal: (entry: MealLogEntry) => void;
-  copyMealsToDate: (sourceDate: string, targetDate: string) => void;
+  addMeal: (entry: Omit<MealLogEntry, 'id' | 'userId'>) => Promise<void>;
+  deleteMeal: (id: string) => Promise<void>;
+  updateMeal: (entry: MealLogEntry) => Promise<void>;
+  copyMealsToDate: (sourceDate: string, targetDate: string) => Promise<void>;
 
-  addWater: (amountMl: number) => void;
-  deleteWater: (id: string) => void;
-  resetDayWater: () => void;
+  addWater: (amountMl: number) => Promise<void>;
+  deleteWater: (id: string) => Promise<void>;
+  resetDayWater: () => Promise<void>;
 
-  logSleep: (entry: Omit<SleepLogEntry, 'id' | 'userId'>) => void;
-  logWorkout: (entry: Omit<WorkoutLogEntry, 'id' | 'userId'>) => void;
-  deleteWorkout: (id: string) => void;
+  logSleep: (entry: Omit<SleepLogEntry, 'id' | 'userId'>) => Promise<void>;
+  logWorkout: (entry: Omit<WorkoutLogEntry, 'id' | 'userId'>) => Promise<void>;
+  deleteWorkout: (id: string) => Promise<void>;
 
-  toggleHabit: (habitId: string, date?: string) => void;
-  addHabit: (title: string, category: HabitItem['category'], iconName: string) => void;
-  deleteHabit: (id: string) => void;
+  toggleHabit: (habitId: string, date?: string) => Promise<void>;
+  addHabit: (title: string, category: HabitItem['category'], iconName: string) => Promise<void>;
+  deleteHabit: (id: string) => Promise<void>;
 
-  logWeight: (entry: Omit<WeightLogEntry, 'id' | 'userId'>) => void;
-  deleteWeight: (id: string) => void;
+  logWeight: (entry: Omit<WeightLogEntry, 'id' | 'userId'>) => Promise<void>;
+  deleteWeight: (id: string) => Promise<void>;
 
   addCustomFood: (food: Omit<FoodItem, 'id'>) => void;
-  updateCustomFood: (food: FoodItem) => void;
   deleteCustomFood: (id: string) => void;
+  confirmPlanMealEaten: (planItem: PlanMealItem) => Promise<void>;
+  updatePlanItem: (item: PlanMealItem) => Promise<void>;
 
-  confirmPlanMealEaten: (planItem: PlanMealItem) => void;
-  updatePlanItem: (item: PlanMealItem) => void;
-
-  // Profile & Auth
-  updateProfile: (updated: Partial<UserProfile>) => void;
-  switchUser: (userId: string) => void;
-  loginAsDemo: () => void;
-  registerNewUser: (email: string, displayName: string, password?: string) => UserProfile;
-  logout: () => void;
-  deleteCurrentAccount: () => void;
+  // Profile
+  updateProfile: (updated: Partial<UserProfile>) => Promise<void>;
 
   // Notification Toast
   toast: ToastMessage | null;
@@ -148,45 +192,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isLargeFont, setIsLargeFont] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  // Users
-  const [allUsers, setAllUsers] = useState<UserProfile[]>(getAllRegisteredUsers);
-  const [currentUserId, setCurrentUserId] = useState<string>(getStoredCurrentUserId);
+  // Firebase Auth State
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  const currentUser = useMemo(() => {
-    return allUsers.find((u) => u.id === currentUserId) || DEMO_USER_PROFILE;
-  }, [allUsers, currentUserId]);
+  // Cloud synced datasets
+  const [meals, setMeals] = useState<MealLogEntry[]>([]);
+  const [water, setWater] = useState<WaterLogEntry[]>([]);
+  const [sleep, setSleep] = useState<SleepLogEntry[]>([]);
+  const [workouts, setWorkouts] = useState<WorkoutLogEntry[]>([]);
+  const [habits, setHabits] = useState<HabitItem[]>([]);
+  const [plans, setPlans] = useState<PlanMealItem[]>([]);
+  const [weights, setWeights] = useState<WeightLogEntry[]>([]);
 
-  // Synchronize font size preference from user
-  useEffect(() => {
-    if (currentUser?.fontSizePreference === 'large') {
-      setIsLargeFont(true);
-    } else {
-      setIsLargeFont(false);
-    }
-  }, [currentUser]);
-
-  // Scoped Data states
-  const [meals, setMeals] = useState<MealLogEntry[]>(() => loadUserMeals(currentUserId));
-  const [water, setWater] = useState<WaterLogEntry[]>(() => loadUserWater(currentUserId));
-  const [sleep, setSleep] = useState<SleepLogEntry[]>(() => loadUserSleep(currentUserId));
-  const [workouts, setWorkouts] = useState<WorkoutLogEntry[]>(() => loadUserWorkouts(currentUserId));
-  const [habits, setHabits] = useState<HabitItem[]>(() => loadUserHabits(currentUserId));
-  const [plans, setPlans] = useState<PlanMealItem[]>(() => loadUserPlans(currentUserId));
-  const [weights, setWeights] = useState<WeightLogEntry[]>(() => loadUserWeights(currentUserId));
-
-  const [foodCatalog, setFoodCatalog] = useState<FoodItem[]>(loadCustomFoods);
-  const [exercises, setExercises] = useState<ExerciseItem[]>(loadExercises);
-
-  // Reload data when user changes
-  useEffect(() => {
-    setMeals(loadUserMeals(currentUserId));
-    setWater(loadUserWater(currentUserId));
-    setSleep(loadUserSleep(currentUserId));
-    setWorkouts(loadUserWorkouts(currentUserId));
-    setHabits(loadUserHabits(currentUserId));
-    setPlans(loadUserPlans(currentUserId));
-    setWeights(loadUserWeights(currentUserId));
-  }, [currentUserId]);
+  const [foodCatalog, setFoodCatalog] = useState<FoodItem[]>(INITIAL_VIETNAMESE_FOODS);
+  const [exercises] = useState<ExerciseItem[]>(EXERCISE_LIBRARY);
 
   // Toast handler
   const showToast = (text: string, type: ToastMessage['type'] = 'success', undo?: () => void, undoLabel: string = 'Hoàn tác') => {
@@ -199,7 +220,98 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const hideToast = () => setToast(null);
 
-  // Calculations for current selected date
+  // Monitor Firebase Authentication State
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        try {
+          // Fetch real profile from Firestore
+          let profile = await fetchUserProfileFromFirestore(user.uid);
+          if (!profile) {
+            // First time Google sign-in: create real profile from Google info
+            profile = {
+              ...DEFAULT_BLANK_PROFILE,
+              id: user.uid,
+              email: user.email || '',
+              displayName: user.displayName || user.email?.split('@')[0] || 'Người dùng',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            await syncUserProfileToFirestore(profile);
+            // Prompt onboarding for first time
+            setActiveScreen('onboarding');
+          }
+          setCurrentUser(profile);
+          showToast(`Chào mừng ${profile.displayName} đã đăng nhập!`);
+        } catch (e) {
+          console.error('Error loading user profile:', e);
+        }
+      } else {
+        setCurrentUser(null);
+        setMeals([]);
+        setWater([]);
+        setSleep([]);
+        setWorkouts([]);
+        setHabits([]);
+        setPlans([]);
+        setWeights([]);
+        setActiveScreen('auth');
+      }
+      setIsAuthLoading(false);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Listen to Firestore real-time collections when user is authenticated
+  useEffect(() => {
+    if (!firebaseUser?.uid) return;
+
+    const uid = firebaseUser.uid;
+    const unsubMeals = subscribeUserMeals(uid, setMeals);
+    const unsubWater = subscribeUserWater(uid, setWater);
+    const unsubSleep = subscribeUserSleep(uid, setSleep);
+    const unsubWorkouts = subscribeUserWorkouts(uid, setWorkouts);
+    const unsubHabits = subscribeUserHabits(uid, setHabits);
+    const unsubWeights = subscribeUserWeights(uid, setWeights);
+    const unsubPlans = subscribeUserPlans(uid, setPlans);
+
+    return () => {
+      unsubMeals();
+      unsubWater();
+      unsubSleep();
+      unsubWorkouts();
+      unsubHabits();
+      unsubWeights();
+      unsubPlans();
+    };
+  }, [firebaseUser]);
+
+  // Google Sign-In Action
+  const signInWithGoogle = async () => {
+    try {
+      setIsAuthLoading(true);
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      console.error('Google Sign-In Error:', error);
+      showToast(error.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.', 'error');
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Sign-Out Action
+  const signOutUser = async () => {
+    try {
+      await signOut(auth);
+      showToast('Đã đăng xuất an toàn.');
+      setActiveScreen('auth');
+    } catch (error: any) {
+      console.error('Sign out error:', error);
+    }
+  };
+
+  // Filtered for currentDate
   const todayMeals = useMemo(() => {
     return meals.filter((m) => m.date === currentDate);
   }, [meals, currentDate]);
@@ -227,146 +339,123 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [todayWorkouts]);
 
   // Actions
-  const addMeal = (entry: Omit<MealLogEntry, 'id' | 'userId'>) => {
+  const addMeal = async (entry: Omit<MealLogEntry, 'id' | 'userId'>) => {
+    if (!currentUser) return;
     const newEntry: MealLogEntry = {
       ...entry,
       id: `meal_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId: currentUserId,
+      userId: currentUser.id,
     };
-    const next = [newEntry, ...meals];
-    setMeals(next);
-    saveUserMeals(currentUserId, next);
-    showToast(`Đã thêm món "${entry.foodName}" vào nhật ký.`);
+    await saveMealToFirestore(currentUser.id, newEntry);
+    showToast(`Đã lưu "${entry.foodName}" vào nhật ký đám mây.`);
   };
 
-  const deleteMeal = (id: string) => {
+  const deleteMeal = async (id: string) => {
+    if (!currentUser) return;
     const target = meals.find((m) => m.id === id);
     if (!target) return;
-    const next = meals.filter((m) => m.id !== id);
-    setMeals(next);
-    saveUserMeals(currentUserId, next);
-
-    showToast(`Đã xóa món "${target.foodName}".`, 'info', () => {
-      const restored = [target, ...next];
-      setMeals(restored);
-      saveUserMeals(currentUserId, restored);
+    await deleteMealFromFirestore(currentUser.id, id);
+    showToast(`Đã xóa món "${target.foodName}".`, 'info', async () => {
+      await saveMealToFirestore(currentUser.id, target);
       showToast(`Đã hoàn tác khôi phục "${target.foodName}".`);
     });
   };
 
-  const updateMeal = (entry: MealLogEntry) => {
-    const next = meals.map((m) => (m.id === entry.id ? entry : m));
-    setMeals(next);
-    saveUserMeals(currentUserId, next);
+  const updateMeal = async (entry: MealLogEntry) => {
+    if (!currentUser) return;
+    await saveMealToFirestore(currentUser.id, entry);
     showToast(`Đã cập nhật món "${entry.foodName}".`);
   };
 
-  const copyMealsToDate = (sourceDate: string, targetDate: string) => {
+  const copyMealsToDate = async (sourceDate: string, targetDate: string) => {
+    if (!currentUser) return;
     const sourceMeals = meals.filter((m) => m.date === sourceDate);
     if (sourceMeals.length === 0) {
       showToast('Không có món nào trong ngày được chọn để sao chép.', 'info');
       return;
     }
-    const cloned: MealLogEntry[] = sourceMeals.map((m) => ({
-      ...m,
-      id: `meal_copy_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      date: targetDate,
-    }));
-    const next = [...cloned, ...meals];
-    setMeals(next);
-    saveUserMeals(currentUserId, next);
-    showToast(`Đã sao chép ${cloned.length} món sang ngày ${targetDate}.`);
+    for (const m of sourceMeals) {
+      const cloned: MealLogEntry = {
+        ...m,
+        id: `meal_copy_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        date: targetDate,
+      };
+      await saveMealToFirestore(currentUser.id, cloned);
+    }
+    showToast(`Đã sao chép ${sourceMeals.length} món sang ngày ${targetDate}.`);
   };
 
-  const addWater = (amountMl: number) => {
+  const addWater = async (amountMl: number) => {
+    if (!currentUser) return;
     const now = new Date();
     const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const newEntry: WaterLogEntry = {
       id: `water_${Date.now()}`,
-      userId: currentUserId,
+      userId: currentUser.id,
       date: currentDate,
       time,
       amountMl,
     };
-    const next = [...water, newEntry];
-    setWater(next);
-    saveUserWater(currentUserId, next);
+    await saveWaterToFirestore(currentUser.id, newEntry);
     showToast(`Đã ghi nhận +${amountMl}ml nước.`);
   };
 
-  const deleteWater = (id: string) => {
+  const deleteWater = async (id: string) => {
+    if (!currentUser) return;
     const target = water.find((w) => w.id === id);
     if (!target) return;
-    const next = water.filter((w) => w.id !== id);
-    setWater(next);
-    saveUserWater(currentUserId, next);
+    await deleteWaterFromFirestore(currentUser.id, id);
     showToast(`Đã xóa lần uống ${target.amountMl}ml.`, 'info');
   };
 
-  const resetDayWater = () => {
-    const next = water.filter((w) => w.date !== currentDate);
-    setWater(next);
-    saveUserWater(currentUserId, next);
-    showToast('Đã đặt lại lượng nước ngày hôm nay.');
+  const logSleep = async (entry: Omit<SleepLogEntry, 'id' | 'userId'>) => {
+    if (!currentUser) return;
+    const existing = sleep.find((s) => s.date === entry.date);
+    const newEntry: SleepLogEntry = {
+      ...entry,
+      id: existing ? existing.id : `sleep_${Date.now()}`,
+      userId: currentUser.id,
+    };
+    await saveSleepToFirestore(currentUser.id, newEntry);
+    showToast(`Đã lưu giấc ngủ: ${entry.durationHours} giờ vào Firebase.`);
   };
 
-  const logSleep = (entry: Omit<SleepLogEntry, 'id' | 'userId'>) => {
-    const existingIndex = sleep.findIndex((s) => s.date === entry.date);
-    let next: SleepLogEntry[];
-    if (existingIndex >= 0) {
-      next = [...sleep];
-      next[existingIndex] = { ...entry, id: sleep[existingIndex].id, userId: currentUserId };
-    } else {
-      const newEntry: SleepLogEntry = {
-        ...entry,
-        id: `sleep_${Date.now()}`,
-        userId: currentUserId,
-      };
-      next = [newEntry, ...sleep];
-    }
-    setSleep(next);
-    saveUserSleep(currentUserId, next);
-    showToast(`Đã lưu giấc ngủ: ${entry.durationHours} giờ.`);
-  };
-
-  const logWorkout = (entry: Omit<WorkoutLogEntry, 'id' | 'userId'>) => {
+  const logWorkout = async (entry: Omit<WorkoutLogEntry, 'id' | 'userId'>) => {
+    if (!currentUser) return;
     const newEntry: WorkoutLogEntry = {
       ...entry,
       id: `workout_${Date.now()}`,
-      userId: currentUserId,
+      userId: currentUser.id,
     };
-    const next = [newEntry, ...workouts];
-    setWorkouts(next);
-    saveUserWorkouts(currentUserId, next);
-    showToast(`Đã lưu vận động: "${entry.activityName}".`);
+    await saveWorkoutToFirestore(currentUser.id, newEntry);
+    showToast(`Đã lưu bài tập "${entry.activityName}".`);
   };
 
-  const deleteWorkout = (id: string) => {
-    const next = workouts.filter((w) => w.id !== id);
-    setWorkouts(next);
-    saveUserWorkouts(currentUserId, next);
+  const deleteWorkout = async (id: string) => {
+    if (!currentUser) return;
+    await deleteWorkoutFromFirestore(currentUser.id, id);
     showToast('Đã xóa buổi tập.', 'info');
   };
 
-  const toggleHabit = (habitId: string, date: string = currentDate) => {
-    const next = habits.map((h) => {
-      if (h.id === habitId) {
-        const hasCompleted = h.completedDates.includes(date);
-        const newDates = hasCompleted
-          ? h.completedDates.filter((d) => d !== date)
-          : [...h.completedDates, date];
-        return { ...h, completedDates: newDates };
-      }
-      return h;
-    });
-    setHabits(next);
-    saveUserHabits(currentUserId, next);
+  const toggleHabit = async (habitId: string, date: string = currentDate) => {
+    if (!currentUser) return;
+    const habit = habits.find((h) => h.id === habitId);
+    if (!habit) return;
+
+    const hasCompleted = habit.completedDates.includes(date);
+    const newDates = hasCompleted
+      ? habit.completedDates.filter((d) => d !== date)
+      : [...habit.completedDates, date];
+
+    const updated: HabitItem = { ...habit, completedDates: newDates };
+    await saveHabitToFirestore(currentUser.id, updated);
   };
 
-  const addHabit = (title: string, category: HabitItem['category'], iconName: string) => {
+  const addHabit = async (title: string, category: HabitItem['category'], iconName: string) => {
+    if (!currentUser) return;
     const newHabit: HabitItem = {
       id: `habit_${Date.now()}`,
-      userId: currentUserId,
+      userId: currentUser.id,
       title,
       category,
       categoryLabel:
@@ -383,48 +472,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       targetFrequency: 'daily',
       completedDates: [],
     };
-    const next = [...habits, newHabit];
-    setHabits(next);
-    saveUserHabits(currentUserId, next);
+    await saveHabitToFirestore(currentUser.id, newHabit);
     showToast(`Đã tạo thói quen "${title}".`);
   };
 
-  const deleteHabit = (id: string) => {
-    const next = habits.filter((h) => h.id !== id);
-    setHabits(next);
-    saveUserHabits(currentUserId, next);
+  const deleteHabit = async (id: string) => {
+    if (!currentUser) return;
+    await deleteHabitFromFirestore(currentUser.id, id);
     showToast('Đã xóa thói quen.', 'info');
   };
 
-  const logWeight = (entry: Omit<WeightLogEntry, 'id' | 'userId'>) => {
-    const existingIndex = weights.findIndex((w) => w.date === entry.date);
-    let next: WeightLogEntry[];
-    if (existingIndex >= 0) {
-      next = [...weights];
-      next[existingIndex] = { ...entry, id: weights[existingIndex].id, userId: currentUserId };
-    } else {
-      const newEntry: WeightLogEntry = {
-        ...entry,
-        id: `weight_${Date.now()}`,
-        userId: currentUserId,
-      };
-      next = [newEntry, ...weights];
-    }
-    // Sort descending by date
-    next.sort((a, b) => b.date.localeCompare(a.date));
-    setWeights(next);
-    saveUserWeights(currentUserId, next);
-
-    // Update current weight in user profile
-    updateProfile({ currentWeightKg: entry.weightKg });
-    showToast(`Đã ghi nhận cân nặng: ${entry.weightKg} kg.`);
+  const logWeight = async (entry: Omit<WeightLogEntry, 'id' | 'userId'>) => {
+    if (!currentUser) return;
+    const existing = weights.find((w) => w.date === entry.date);
+    const newEntry: WeightLogEntry = {
+      ...entry,
+      id: existing ? existing.id : `weight_${Date.now()}`,
+      userId: currentUser.id,
+    };
+    await saveWeightToFirestore(currentUser.id, newEntry);
+    await updateProfile({ currentWeightKg: entry.weightKg });
+    showToast(`Đã lưu cân nặng ${entry.weightKg}kg lên Firebase.`);
   };
 
-  const deleteWeight = (id: string) => {
-    const next = weights.filter((w) => w.id !== id);
-    setWeights(next);
-    saveUserWeights(currentUserId, next);
+  const deleteWeight = async (id: string) => {
+    if (!currentUser) return;
+    await deleteWeightFromFirestore(currentUser.id, id);
     showToast('Đã xóa bản ghi cân nặng.', 'info');
+  };
+
+  const resetDayWater = async () => {
+    if (!currentUser) return;
+    const todayEntries = water.filter((w) => w.date === currentDate);
+    for (const entry of todayEntries) {
+      await deleteWaterFromFirestore(currentUser.id, entry.id);
+    }
+    showToast('Đã đặt lại dữ liệu nước trong ngày.', 'info');
   };
 
   const addCustomFood = (food: Omit<FoodItem, 'id'>) => {
@@ -434,27 +517,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isCustom: true,
       source: food.source || 'Người dùng tạo',
     };
-    const next = [newFood, ...foodCatalog];
-    setFoodCatalog(next);
-    saveCustomFoods(next);
-    showToast(`Đã thêm món "${food.name}" vào danh mục.`);
-  };
-
-  const updateCustomFood = (food: FoodItem) => {
-    const next = foodCatalog.map((f) => (f.id === food.id ? food : f));
-    setFoodCatalog(next);
-    saveCustomFoods(next);
-    showToast(`Đã cập nhật món "${food.name}".`);
+    setFoodCatalog([newFood, ...foodCatalog]);
+    showToast(`Đã thêm món "${food.name}".`);
   };
 
   const deleteCustomFood = (id: string) => {
-    const next = foodCatalog.filter((f) => f.id !== id);
-    setFoodCatalog(next);
-    saveCustomFoods(next);
-    showToast('Đã xóa món khỏi danh mục.', 'info');
+    setFoodCatalog((prev) => prev.filter((f) => f.id !== id));
+    showToast('Đã xóa món ăn khỏi danh mục.', 'info');
   };
 
-  const confirmPlanMealEaten = (planItem: PlanMealItem) => {
+  const confirmPlanMealEaten = async (planItem: PlanMealItem) => {
+    if (!currentUser) return;
     const now = new Date();
     const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const newMeal: Omit<MealLogEntry, 'id' | 'userId'> = {
@@ -472,89 +545,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       notes: `Chuyển từ kế hoạch ăn uống (${planItem.title})`,
       source: planItem.source,
     };
-    addMeal(newMeal);
+    await addMeal(newMeal);
 
-    // Mark plan item as confirmed
-    const nextPlans = plans.map((p) => (p.id === planItem.id ? { ...p, isConfirmedEaten: true } : p));
-    setPlans(nextPlans);
-    saveUserPlans(currentUserId, nextPlans);
-    showToast(`Đã xác nhận ăn và thêm "${planItem.title}" vào nhật ký hôm nay.`);
+    const updatedPlan = { ...planItem, isConfirmedEaten: true };
+    await savePlanToFirestore(currentUser.id, updatedPlan);
+    showToast(`Đã xác nhận ăn "${planItem.title}" và lưu vào nhật ký.`);
   };
 
-  const updatePlanItem = (item: PlanMealItem) => {
-    const next = plans.map((p) => (p.id === item.id ? item : p));
-    setPlans(next);
-    saveUserPlans(currentUserId, next);
+  const updatePlanItem = async (item: PlanMealItem) => {
+    if (!currentUser) return;
+    await savePlanToFirestore(currentUser.id, item);
   };
 
-  const updateProfile = (updated: Partial<UserProfile>) => {
+  const updateProfile = async (updated: Partial<UserProfile>) => {
+    if (!currentUser) return;
     const nextUser: UserProfile = {
       ...currentUser,
       ...updated,
       updatedAt: new Date().toISOString(),
     };
-    saveUserToDirectory(nextUser);
-    setAllUsers((prev) => prev.map((u) => (u.id === nextUser.id ? nextUser : u)));
-  };
-
-  const switchUser = (userId: string) => {
-    setCurrentUserId(userId);
-    setStoredCurrentUserId(userId);
-    const target = allUsers.find((u) => u.id === userId);
-    showToast(`Đã chuyển sang tài khoản "${target?.displayName || 'Người dùng'}".`);
-  };
-
-  const loginAsDemo = () => {
-    switchUser(DEMO_USER_ID);
-    setActiveScreen('home');
-  };
-
-  const registerNewUser = (email: string, displayName: string): UserProfile => {
-    const newId = `user_${Date.now()}`;
-    const newUser: UserProfile = {
-      ...DEMO_USER_PROFILE,
-      id: newId,
-      email,
-      displayName,
-      role: 'user',
-      isDemoUser: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const nextUsers = [...allUsers, newUser];
-    setAllUsers(nextUsers);
-    localStorage.setItem('kmn_all_users_v1', JSON.stringify(nextUsers));
-    setCurrentUserId(newId);
-    setStoredCurrentUserId(newId);
-    showToast(`Chào mừng bạn, ${displayName}! Tài khoản đã sẵn sàng.`);
-    setActiveScreen('onboarding');
-    return newUser;
-  };
-
-  const logout = () => {
-    loginAsDemo();
-    showToast('Đã đăng xuất. Bạn đang ở chế độ dùng thử với dữ liệu minh họa.');
-  };
-
-  const deleteCurrentAccount = () => {
-    if (currentUser.id === DEMO_USER_ID) {
-      showToast('Tài khoản mẫu không thể bị xóa hoàn toàn. Dữ liệu đã được đặt lại ban đầu.', 'info');
-      return;
-    }
-    const oldName = currentUser.displayName;
-    deleteUserDataCompletely(currentUser.id);
-    const remaining = getAllRegisteredUsers();
-    setAllUsers(remaining);
-    setCurrentUserId(DEMO_USER_ID);
-    setStoredCurrentUserId(DEMO_USER_ID);
-    showToast(`Đã xóa vĩnh viễn tài khoản "${oldName}" và toàn bộ dữ liệu.`, 'info');
+    setCurrentUser(nextUser);
+    await syncUserProfileToFirestore(nextUser);
   };
 
   return (
     <AppContext.Provider
       value={{
         currentUser,
-        allUsers,
+        firebaseUser,
+        isAuthLoading,
+        signInWithGoogle,
+        signOutUser,
+
         currentDate,
         setCurrentDate,
         activeScreen,
@@ -604,18 +626,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteWeight,
 
         addCustomFood,
-        updateCustomFood,
         deleteCustomFood,
-
         confirmPlanMealEaten,
         updatePlanItem,
 
         updateProfile,
-        switchUser,
-        loginAsDemo,
-        registerNewUser,
-        logout,
-        deleteCurrentAccount,
 
         toast,
         showToast,

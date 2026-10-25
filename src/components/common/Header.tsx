@@ -17,7 +17,6 @@ import { getRelativeDateString } from '../../data/initialDemoData';
 export const Header: React.FC = () => {
   const {
     currentUser,
-    firebaseUser,
     currentDate,
     setCurrentDate,
     activeScreen,
@@ -151,9 +150,9 @@ export const Header: React.FC = () => {
               className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors"
               title="Xem hồ sơ cá nhân"
             >
-              {firebaseUser?.photoURL ? (
+              {currentUser.avatarUrl ? (
                 <img
-                  src={firebaseUser.photoURL}
+                  src={currentUser.avatarUrl}
                   alt={currentUser.displayName}
                   referrerPolicy="no-referrer"
                   className="w-7 h-7 rounded-full object-cover"

@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase';
 import {
   UserProfile,
   MealLogEntry,
@@ -14,28 +12,32 @@ import {
   ExerciseItem,
 } from '../types';
 import {
-  syncUserProfileToFirestore,
-  fetchUserProfileFromFirestore,
-  subscribeUserMeals,
-  saveMealToFirestore,
-  deleteMealFromFirestore,
-  subscribeUserWater,
-  saveWaterToFirestore,
-  deleteWaterFromFirestore,
-  subscribeUserSleep,
-  saveSleepToFirestore,
-  subscribeUserWorkouts,
-  saveWorkoutToFirestore,
-  deleteWorkoutFromFirestore,
-  subscribeUserHabits,
-  saveHabitToFirestore,
-  deleteHabitFromFirestore,
-  subscribeUserWeights,
-  saveWeightToFirestore,
-  deleteWeightFromFirestore,
-  subscribeUserPlans,
-  savePlanToFirestore,
-} from '../services/firestoreService';
+  syncUserProfileToStorage,
+  fetchUserProfileFromStorage,
+  getActiveUserId,
+  clearActiveSession,
+  getUserMeals,
+  saveUserMeal,
+  deleteUserMeal,
+  getUserWater,
+  saveUserWater,
+  deleteUserWater,
+  resetUserDayWater,
+  getUserSleep,
+  saveUserSleep,
+  getUserWorkouts,
+  saveUserWorkout,
+  deleteUserWorkout,
+  getUserHabits,
+  saveUserHabit,
+  deleteUserHabit,
+  getUserWeights,
+  saveUserWeight,
+  deleteUserWeight,
+  getUserPlans,
+  saveUserPlan,
+  clearAllUserData,
+} from '../services/storageService';
 import { INITIAL_VIETNAMESE_FOODS } from '../data/vietnameseFoods';
 import { EXERCISE_LIBRARY } from '../data/exerciseLibrary';
 import { getRelativeDateString } from '../data/initialDemoData';
@@ -62,6 +64,13 @@ export interface ToastMessage {
   type?: 'success' | 'info' | 'error';
   undoAction?: () => void;
   undoLabel?: string;
+}
+
+export interface GoogleAuthPayload {
+  id?: string;
+  email: string;
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 const DEFAULT_BLANK_PROFILE: UserProfile = {
@@ -112,10 +121,10 @@ const DEFAULT_BLANK_PROFILE: UserProfile = {
 
 interface AppContextValue {
   currentUser: UserProfile | null;
-  firebaseUser: FirebaseUser | null;
   isAuthLoading: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signOutUser: () => Promise<void>;
+  signInWithGoogle: (payload: GoogleAuthPayload) => Promise<void>;
+  signOutUser: () => void;
+  clearMyData: () => void;
 
   currentDate: string; // YYYY-MM-DD
   setCurrentDate: (date: string) => void;
@@ -128,7 +137,7 @@ interface AppContextValue {
   isLargeFont: boolean;
   setIsLargeFont: (b: boolean) => void;
 
-  // Real-time Cloud Data
+  // Real data for current user
   meals: MealLogEntry[];
   water: WaterLogEntry[];
   sleep: SleepLogEntry[];
@@ -192,12 +201,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isLargeFont, setIsLargeFont] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  // Firebase Auth State
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  // Authentication State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  // Cloud synced datasets
+  // Datasets
   const [meals, setMeals] = useState<MealLogEntry[]>([]);
   const [water, setWater] = useState<WaterLogEntry[]>([]);
   const [sleep, setSleep] = useState<SleepLogEntry[]>([]);
@@ -220,95 +228,115 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const hideToast = () => setToast(null);
 
-  // Monitor Firebase Authentication State
+  // Restore authenticated session from storage on boot (NO fake account auto-creation!)
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-      if (user) {
-        try {
-          // Fetch real profile from Firestore
-          let profile = await fetchUserProfileFromFirestore(user.uid);
-          if (!profile) {
-            // First time Google sign-in: create real profile from Google info
-            profile = {
-              ...DEFAULT_BLANK_PROFILE,
-              id: user.uid,
-              email: user.email || '',
-              displayName: user.displayName || user.email?.split('@')[0] || 'Người dùng',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
-            await syncUserProfileToFirestore(profile);
-            // Prompt onboarding for first time
-            setActiveScreen('onboarding');
-          }
-          setCurrentUser(profile);
-          showToast(`Chào mừng ${profile.displayName} đã đăng nhập!`);
-        } catch (e) {
-          console.error('Error loading user profile:', e);
+    try {
+      const activeId = getActiveUserId();
+      if (activeId) {
+        const storedProfile = fetchUserProfileFromStorage(activeId);
+        if (storedProfile) {
+          setCurrentUser(storedProfile);
+          setMeals(getUserMeals(activeId));
+          setWater(getUserWater(activeId));
+          setSleep(getUserSleep(activeId));
+          setWorkouts(getUserWorkouts(activeId));
+          setHabits(getUserHabits(activeId));
+          setWeights(getUserWeights(activeId));
+          setPlans(getUserPlans(activeId));
+          setActiveScreen('home');
+        } else {
+          setCurrentUser(null);
+          setActiveScreen('auth');
         }
       } else {
         setCurrentUser(null);
-        setMeals([]);
-        setWater([]);
-        setSleep([]);
-        setWorkouts([]);
-        setHabits([]);
-        setPlans([]);
-        setWeights([]);
         setActiveScreen('auth');
       }
+    } catch (e) {
+      console.error('Error loading session:', e);
+      setCurrentUser(null);
+      setActiveScreen('auth');
+    } finally {
       setIsAuthLoading(false);
-    });
-
-    return () => unsubscribeAuth();
+    }
   }, []);
 
-  // Listen to Firestore real-time collections when user is authenticated
-  useEffect(() => {
-    if (!firebaseUser?.uid) return;
-
-    const uid = firebaseUser.uid;
-    const unsubMeals = subscribeUserMeals(uid, setMeals);
-    const unsubWater = subscribeUserWater(uid, setWater);
-    const unsubSleep = subscribeUserSleep(uid, setSleep);
-    const unsubWorkouts = subscribeUserWorkouts(uid, setWorkouts);
-    const unsubHabits = subscribeUserHabits(uid, setHabits);
-    const unsubWeights = subscribeUserWeights(uid, setWeights);
-    const unsubPlans = subscribeUserPlans(uid, setPlans);
-
-    return () => {
-      unsubMeals();
-      unsubWater();
-      unsubSleep();
-      unsubWorkouts();
-      unsubHabits();
-      unsubWeights();
-      unsubPlans();
-    };
-  }, [firebaseUser]);
-
-  // Google Sign-In Action
-  const signInWithGoogle = async () => {
+  // Google Sign-In (Real authentic Google account, zero virtual accounts)
+  const signInWithGoogle = async (payload: GoogleAuthPayload) => {
+    setIsAuthLoading(true);
     try {
-      setIsAuthLoading(true);
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error('Google Sign-In Error:', error);
-      showToast(error.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.', 'error');
+      // Consistent unique ID from Google sub or email hash
+      const cleanEmail = payload.email.trim().toLowerCase();
+      const userId = payload.id || `google_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+      // Check if profile already exists for this Google user
+      let profile = fetchUserProfileFromStorage(userId);
+      const isNewUser = !profile;
+
+      if (!profile) {
+        // Create new real profile with authentic Google data
+        const fallbackName = cleanEmail.split('@')[0];
+        profile = {
+          ...DEFAULT_BLANK_PROFILE,
+          id: userId,
+          email: cleanEmail,
+          displayName: payload.displayName || fallbackName,
+          avatarUrl: payload.avatarUrl,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      } else if (payload.avatarUrl && !profile.avatarUrl) {
+        profile = { ...profile, avatarUrl: payload.avatarUrl };
+      }
+
+      syncUserProfileToStorage(profile);
+      setCurrentUser(profile);
+
+      // Load user's private data
+      setMeals(getUserMeals(userId));
+      setWater(getUserWater(userId));
+      setSleep(getUserSleep(userId));
+      setWorkouts(getUserWorkouts(userId));
+      setHabits(getUserHabits(userId));
+      setWeights(getUserWeights(userId));
+      setPlans(getUserPlans(userId));
+
+      if (isNewUser) {
+        setActiveScreen('onboarding');
+        showToast(`Chào mừng ${profile.displayName}! Hãy thiết lập nhanh mục tiêu sức khỏe.`);
+      } else {
+        setActiveScreen('home');
+        showToast(`Đăng nhập thành công: ${profile.displayName}`);
+      }
+    } catch (err: any) {
+      console.error('Google Sign-In Error:', err);
+      showToast('Đăng nhập Google không thành công. Vui lòng thử lại.', 'error');
+    } finally {
       setIsAuthLoading(false);
     }
   };
 
-  // Sign-Out Action
-  const signOutUser = async () => {
-    try {
-      await signOut(auth);
-      showToast('Đã đăng xuất an toàn.');
-      setActiveScreen('auth');
-    } catch (error: any) {
-      console.error('Sign out error:', error);
-    }
+  // Sign-Out
+  const signOutUser = () => {
+    clearActiveSession();
+    setCurrentUser(null);
+    setMeals([]);
+    setWater([]);
+    setSleep([]);
+    setWorkouts([]);
+    setHabits([]);
+    setPlans([]);
+    setWeights([]);
+    setActiveScreen('auth');
+    showToast('Đã đăng xuất tài khoản Google.');
+  };
+
+  // Clear data
+  const clearMyData = () => {
+    if (!currentUser) return;
+    clearAllUserData(currentUser.id);
+    signOutUser();
+    showToast('Đã xóa sạch dữ liệu tài khoản trên thiết bị.', 'info');
   };
 
   // Filtered for currentDate
@@ -346,42 +374,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: `meal_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       userId: currentUser.id,
     };
-    await saveMealToFirestore(currentUser.id, newEntry);
-    showToast(`Đã lưu "${entry.foodName}" vào nhật ký đám mây.`);
+    const updated = saveUserMeal(currentUser.id, newEntry);
+    setMeals(updated);
+    showToast(`Đã lưu "${entry.foodName}" vào nhật ký.`);
   };
 
   const deleteMeal = async (id: string) => {
     if (!currentUser) return;
     const target = meals.find((m) => m.id === id);
-    if (!target) return;
-    await deleteMealFromFirestore(currentUser.id, id);
-    showToast(`Đã xóa món "${target.foodName}".`, 'info', async () => {
-      await saveMealToFirestore(currentUser.id, target);
-      showToast(`Đã hoàn tác khôi phục "${target.foodName}".`);
-    });
+    const updated = deleteUserMeal(currentUser.id, id);
+    setMeals(updated);
+    if (target) {
+      showToast(`Đã xóa món "${target.foodName}".`, 'info', () => {
+        const restored = saveUserMeal(currentUser.id, target);
+        setMeals(restored);
+      });
+    }
   };
 
   const updateMeal = async (entry: MealLogEntry) => {
     if (!currentUser) return;
-    await saveMealToFirestore(currentUser.id, entry);
-    showToast(`Đã cập nhật món "${entry.foodName}".`);
+    const updated = saveUserMeal(currentUser.id, entry);
+    setMeals(updated);
+    showToast(`Đã cập nhật "${entry.foodName}".`);
   };
 
   const copyMealsToDate = async (sourceDate: string, targetDate: string) => {
     if (!currentUser) return;
     const sourceMeals = meals.filter((m) => m.date === sourceDate);
     if (sourceMeals.length === 0) {
-      showToast('Không có món nào trong ngày được chọn để sao chép.', 'info');
+      showToast('Không có món ăn nào trong ngày đã chọn để sao chép.', 'info');
       return;
     }
-    for (const m of sourceMeals) {
+    let currentMeals = meals;
+    for (const item of sourceMeals) {
       const cloned: MealLogEntry = {
-        ...m,
+        ...item,
         id: `meal_copy_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         date: targetDate,
       };
-      await saveMealToFirestore(currentUser.id, cloned);
+      currentMeals = saveUserMeal(currentUser.id, cloned);
     }
+    setMeals(currentMeals);
     showToast(`Đã sao chép ${sourceMeals.length} món sang ngày ${targetDate}.`);
   };
 
@@ -396,7 +430,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       time,
       amountMl,
     };
-    await saveWaterToFirestore(currentUser.id, newEntry);
+    const updated = saveUserWater(currentUser.id, newEntry);
+    setWater(updated);
     showToast(`Đã ghi nhận +${amountMl}ml nước.`);
   };
 
@@ -404,8 +439,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!currentUser) return;
     const target = water.find((w) => w.id === id);
     if (!target) return;
-    await deleteWaterFromFirestore(currentUser.id, id);
+    const updated = deleteUserWater(currentUser.id, id);
+    setWater(updated);
     showToast(`Đã xóa lần uống ${target.amountMl}ml.`, 'info');
+  };
+
+  const resetDayWater = async () => {
+    if (!currentUser) return;
+    const updated = resetUserDayWater(currentUser.id, currentDate);
+    setWater(updated);
+    showToast('Đã đặt lại dữ liệu nước trong ngày.', 'info');
   };
 
   const logSleep = async (entry: Omit<SleepLogEntry, 'id' | 'userId'>) => {
@@ -416,8 +459,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: existing ? existing.id : `sleep_${Date.now()}`,
       userId: currentUser.id,
     };
-    await saveSleepToFirestore(currentUser.id, newEntry);
-    showToast(`Đã lưu giấc ngủ: ${entry.durationHours} giờ vào Firebase.`);
+    const updated = saveUserSleep(currentUser.id, newEntry);
+    setSleep(updated);
+    showToast(`Đã lưu giấc ngủ: ${entry.durationHours} giờ.`);
   };
 
   const logWorkout = async (entry: Omit<WorkoutLogEntry, 'id' | 'userId'>) => {
@@ -427,13 +471,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: `workout_${Date.now()}`,
       userId: currentUser.id,
     };
-    await saveWorkoutToFirestore(currentUser.id, newEntry);
+    const updated = saveUserWorkout(currentUser.id, newEntry);
+    setWorkouts(updated);
     showToast(`Đã lưu bài tập "${entry.activityName}".`);
   };
 
   const deleteWorkout = async (id: string) => {
     if (!currentUser) return;
-    await deleteWorkoutFromFirestore(currentUser.id, id);
+    const updated = deleteUserWorkout(currentUser.id, id);
+    setWorkouts(updated);
     showToast('Đã xóa buổi tập.', 'info');
   };
 
@@ -447,8 +493,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ? habit.completedDates.filter((d) => d !== date)
       : [...habit.completedDates, date];
 
-    const updated: HabitItem = { ...habit, completedDates: newDates };
-    await saveHabitToFirestore(currentUser.id, updated);
+    const updatedItem: HabitItem = { ...habit, completedDates: newDates };
+    const updatedList = saveUserHabit(currentUser.id, updatedItem);
+    setHabits(updatedList);
   };
 
   const addHabit = async (title: string, category: HabitItem['category'], iconName: string) => {
@@ -472,13 +519,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       targetFrequency: 'daily',
       completedDates: [],
     };
-    await saveHabitToFirestore(currentUser.id, newHabit);
+    const updated = saveUserHabit(currentUser.id, newHabit);
+    setHabits(updated);
     showToast(`Đã tạo thói quen "${title}".`);
   };
 
   const deleteHabit = async (id: string) => {
     if (!currentUser) return;
-    await deleteHabitFromFirestore(currentUser.id, id);
+    const updated = deleteUserHabit(currentUser.id, id);
+    setHabits(updated);
     showToast('Đã xóa thói quen.', 'info');
   };
 
@@ -490,24 +539,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: existing ? existing.id : `weight_${Date.now()}`,
       userId: currentUser.id,
     };
-    await saveWeightToFirestore(currentUser.id, newEntry);
+    const updatedWeights = saveUserWeight(currentUser.id, newEntry);
+    setWeights(updatedWeights);
     await updateProfile({ currentWeightKg: entry.weightKg });
-    showToast(`Đã lưu cân nặng ${entry.weightKg}kg lên Firebase.`);
+    showToast(`Đã ghi nhận cân nặng ${entry.weightKg}kg.`);
   };
 
   const deleteWeight = async (id: string) => {
     if (!currentUser) return;
-    await deleteWeightFromFirestore(currentUser.id, id);
+    const updated = deleteUserWeight(currentUser.id, id);
+    setWeights(updated);
     showToast('Đã xóa bản ghi cân nặng.', 'info');
-  };
-
-  const resetDayWater = async () => {
-    if (!currentUser) return;
-    const todayEntries = water.filter((w) => w.date === currentDate);
-    for (const entry of todayEntries) {
-      await deleteWaterFromFirestore(currentUser.id, entry.id);
-    }
-    showToast('Đã đặt lại dữ liệu nước trong ngày.', 'info');
   };
 
   const addCustomFood = (food: Omit<FoodItem, 'id'>) => {
@@ -548,13 +590,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await addMeal(newMeal);
 
     const updatedPlan = { ...planItem, isConfirmedEaten: true };
-    await savePlanToFirestore(currentUser.id, updatedPlan);
+    const updatedList = saveUserPlan(currentUser.id, updatedPlan);
+    setPlans(updatedList);
     showToast(`Đã xác nhận ăn "${planItem.title}" và lưu vào nhật ký.`);
   };
 
   const updatePlanItem = async (item: PlanMealItem) => {
     if (!currentUser) return;
-    await savePlanToFirestore(currentUser.id, item);
+    const updated = saveUserPlan(currentUser.id, item);
+    setPlans(updated);
   };
 
   const updateProfile = async (updated: Partial<UserProfile>) => {
@@ -565,17 +609,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updatedAt: new Date().toISOString(),
     };
     setCurrentUser(nextUser);
-    await syncUserProfileToFirestore(nextUser);
+    syncUserProfileToStorage(nextUser);
   };
 
   return (
     <AppContext.Provider
       value={{
         currentUser,
-        firebaseUser,
         isAuthLoading,
         signInWithGoogle,
         signOutUser,
+        clearMyData,
 
         currentDate,
         setCurrentDate,

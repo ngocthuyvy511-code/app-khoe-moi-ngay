@@ -20,9 +20,9 @@ import { exportUserDataAsJSON } from '../../utils/storage';
 export const ProfileView: React.FC = () => {
   const {
     currentUser,
-    firebaseUser,
     updateProfile,
     signOutUser,
+    clearMyData,
     setActiveScreen,
     showToast,
   } = useApp();
@@ -94,7 +94,7 @@ export const ProfileView: React.FC = () => {
         quietHoursEnd,
       },
     });
-    showToast('Đã lưu các thay đổi hồ sơ & cài đặt lên Firebase.');
+    showToast('Đã lưu các thay đổi hồ sơ & cài đặt.');
   };
 
   const handleExportData = () => {
@@ -116,9 +116,9 @@ export const ProfileView: React.FC = () => {
       {/* User Header Profile Card */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-stone-200/80 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          {firebaseUser?.photoURL ? (
+          {currentUser.avatarUrl ? (
             <img
-              src={firebaseUser.photoURL}
+              src={currentUser.avatarUrl}
               alt={currentUser.displayName}
               referrerPolicy="no-referrer"
               className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-sm shrink-0"
@@ -138,8 +138,8 @@ export const ProfileView: React.FC = () => {
             </p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[11px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
-                <Database className="w-3 h-3" />
-                <span>Đã liên kết Firebase Firestore</span>
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Tài khoản Google đã kết nối · Không có tài khoản ảo</span>
               </span>
             </div>
           </div>
@@ -456,6 +456,29 @@ export const ProfileView: React.FC = () => {
             </button>
           </div>
 
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-rose-50 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-900/40">
+            <div>
+              <span className="text-xs font-bold text-rose-900 dark:text-rose-200 block">
+                Xóa sạch dữ liệu tài khoản
+              </span>
+              <span className="text-[11px] text-rose-700/80 dark:text-rose-300/80">
+                Xóa toàn bộ nhật ký ăn uống, cân nặng và đăng xuất khỏi thiết bị này
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ dữ liệu trên thiết bị này không?')) {
+                  clearMyData();
+                }
+              }}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition-colors self-start sm:self-auto flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Xóa dữ liệu</span>
+            </button>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-stone-50 dark:bg-slate-850 rounded-2xl">
             <div>
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
@@ -466,6 +489,7 @@ export const ProfileView: React.FC = () => {
               </span>
             </div>
             <button
+              type="button"
               onClick={() => setIsPrivacyModalOpen(true)}
               className="px-4 py-2 bg-stone-200 hover:bg-stone-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors self-start sm:self-auto"
             >
@@ -492,12 +516,12 @@ export const ProfileView: React.FC = () => {
             </div>
 
             <p>
-              Ứng dụng <strong>Khỏe Mỗi Ngày</strong> liên kết trực tiếp với Firebase Firestore:
+              Ứng dụng <strong>Khỏe Mỗi Ngày</strong> tuân thủ tiêu chuẩn bảo vệ quyền riêng tư người dùng:
             </p>
             <ul className="list-disc list-inside space-y-1.5 pl-1">
-              <li>Xác thực trực tiếp bằng tài khoản Google cá nhân. Không tạo tài khoản ảo.</li>
-              <li>Chỉ tài khoản Google của bạn mới có quyền đọc và ghi dữ liệu nhật ký của bạn theo quy tắc bảo mật Firestore Rules.</li>
-              <li>Hình ảnh phân tích chỉ được xử lý tạm thời và không công khai.</li>
+              <li>Xác thực trực tiếp bằng tài khoản Google thực. Tuyệt đối không tạo tài khoản ảo.</li>
+              <li>Dữ liệu dinh dưỡng, cân nặng, bài tập được lưu trữ an toàn riêng biệt cho tài khoản của bạn.</li>
+              <li>Không bán, chia sẻ hoặc rò rỉ dữ liệu cá nhân ra bên ngoài.</li>
             </ul>
 
             <button

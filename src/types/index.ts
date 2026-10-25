@@ -140,6 +140,7 @@ export interface UserProfile {
   id: string;
   email: string;
   displayName: string;
+  avatarUrl?: string;
   role: 'user' | 'admin';
   birthYear?: number;
   age?: number;
